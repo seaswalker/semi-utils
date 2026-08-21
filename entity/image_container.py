@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import struct
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -74,6 +75,8 @@ class ImageContainer(object):
         self.path: Path = path
         self.target_path: Path | None = None
         self.img: Image.Image = Image.open(path)
+        # JPEG 源图的量化表，输出时严格复用源质量（transpose 会丢失该属性，需在转向前捕获）
+        self.source_quantization = getattr(self.img, 'quantization', None)
         self.exif: dict = get_exif(path)
         # 图像信息
         self.original_width = self.img.width
@@ -240,6 +243,41 @@ class ImageContainer(object):
         self.img.close()
         self.watermark_img.close()
 
+    def _get_source_subsampling(self):
+        """
+        从源 JPEG 的 SOF marker 解析色度抽样格式，保证输出与源保持一致。
+        非 JPEG 源或解析失败返回 None，由 Pillow 按 quality 默认处理。
+        """
+        try:
+            with open(self.path, 'rb') as f:
+                data = f.read(2048)
+        except OSError:
+            return None
+        i = 2
+        while i + 12 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                          0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                n_components = data[i + 9]
+                if n_components < 3:
+                    return None
+                h, v = data[i + 11] >> 4, data[i + 11] & 0xF
+                if h == 2 and v == 2:
+                    return '4:2:0'
+                if h == 2 and v == 1:
+                    return '4:2:2'
+                if h == 1 and v == 1:
+                    return '4:4:4'
+                return None
+            length = struct.unpack('>H', data[i + 2:i + 4])[0]
+            if length < 2:
+                return None
+            i += 2 + length
+        return None
+
     def save(self, target_path, quality=100):
         if self.orientation == "Rotate 0":
             pass
@@ -255,8 +293,21 @@ class ImageContainer(object):
         if self.watermark_img.mode != 'RGB':
             self.watermark_img = self.watermark_img.convert('RGB')
 
-        if 'exif' in self.img.info:
-            self.watermark_img.save(target_path, quality=quality, encoding='utf-8',
-                                    exif=self.img.info['exif'] if 'exif' in self.img.info else '')
+        # 输出策略：优先复用源 JPEG 的量化表，保证原图区域质量与源文件严格一致；
+        # 无法复用（非 JPEG 源）时回退到配置的输出质量
+        save_kwargs = dict(optimize=True)
+        if self.source_quantization:
+            # quality=50 使 Pillow 对 qtables 的缩放系数为 100%，量化表原样生效，
+            # 从而让原图区域与源文件使用完全相同的量化步长；optimize 进一步压缩体积
+            save_kwargs.update(quality=50, qtables=self.source_quantization)
+            subsampling = self._get_source_subsampling()
+            if subsampling:
+                save_kwargs['subsampling'] = subsampling
         else:
-            self.watermark_img.save(target_path, quality=quality, encoding='utf-8')
+            save_kwargs['quality'] = quality
+
+        if 'exif' in self.img.info:
+            self.watermark_img.save(target_path, encoding='utf-8',
+                                    exif=self.img.info['exif'], **save_kwargs)
+        else:
+            self.watermark_img.save(target_path, encoding='utf-8', **save_kwargs)

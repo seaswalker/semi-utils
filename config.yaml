@@ -7,7 +7,9 @@ base:
   font_size: 1
   input_dir: ./input
   output_dir: ./output
-  quality: 100
+  # 输出图片质量（仅对 PNG 等非 JPEG 源生效）。JPEG 源会自动复用源文件的量化表，
+  # 原图区域质量与源保持一致，因此不会出现加水印后体积膨胀
+  quality: 90
 global:
   focal_length:
     use_equivalent_focal_length: false
