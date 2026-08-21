@@ -18,6 +18,14 @@ from utils import extract_gps_info
 from utils import extract_gps_lat_and_long
 from utils import get_exif
 
+# HEIC 支持（可选依赖）：仅当安装 pillow-heif 时注册，否则 jpg 流程不受影响
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    _HEIF_AVAILABLE = True
+except ImportError:
+    _HEIF_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -293,21 +301,29 @@ class ImageContainer(object):
         if self.watermark_img.mode != 'RGB':
             self.watermark_img = self.watermark_img.convert('RGB')
 
-        # 输出策略：优先复用源 JPEG 的量化表，保证原图区域质量与源文件严格一致；
-        # 无法复用（非 JPEG 源）时回退到配置的输出质量
-        save_kwargs = dict(optimize=True)
-        if self.source_quantization:
-            # quality=50 使 Pillow 对 qtables 的缩放系数为 100%，量化表原样生效，
-            # 从而让原图区域与源文件使用完全相同的量化步长；optimize 进一步压缩体积
-            save_kwargs.update(quality=50, qtables=self.source_quantization)
-            subsampling = self._get_source_subsampling()
-            if subsampling:
-                save_kwargs['subsampling'] = subsampling
-        else:
-            save_kwargs['quality'] = quality
-
+        save_kwargs = dict(encoding='utf-8')
         if 'exif' in self.img.info:
-            self.watermark_img.save(target_path, encoding='utf-8',
-                                    exif=self.img.info['exif'], **save_kwargs)
+            save_kwargs['exif'] = self.img.info['exif']
+
+        output_format = str(target_path.suffix).lower().lstrip('.')
+        if output_format == 'heic':
+            if not _HEIF_AVAILABLE:
+                raise RuntimeError(
+                    '输出 HEIC 需要 pillow-heif，请先安装：pip install pillow-heif（并确保 libheif 已安装）')
+            # HEIC 输出：质量语义与 JPEG 不同，直接用配置质量档位（65 视觉约等于 JPEG 90），
+            # 体积约为 JPEG 同视觉质量的一半
+            save_kwargs.update(format='HEIF', quality=quality, optimize=True)
         else:
-            self.watermark_img.save(target_path, encoding='utf-8', **save_kwargs)
+            # JPEG 输出策略：优先复用源 JPEG 的量化表，保证原图区域质量与源文件严格一致；
+            # 无法复用（非 JPEG 源）时回退到配置的输出质量
+            save_kwargs.update(quality=50 if self.source_quantization else quality,
+                               optimize=True)
+            if self.source_quantization:
+                # quality=50 使 Pillow 对 qtables 的缩放系数为 100%，量化表原样生效，
+                # 从而让原图区域与源文件使用完全相同的量化步长；optimize 进一步压缩体积
+                save_kwargs['qtables'] = self.source_quantization
+                subsampling = self._get_source_subsampling()
+                if subsampling:
+                    save_kwargs['subsampling'] = subsampling
+
+        self.watermark_img.save(target_path, **save_kwargs)

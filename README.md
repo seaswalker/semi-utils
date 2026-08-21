@@ -61,6 +61,22 @@
   >
   > 如果命令运行出错可以参考 [常见问题](#常见问题)。
 
+- **（可选）HEIC 输出依赖**
+
+  如果只需 JPEG 输出，无需任何额外操作。若要输出 HEIC 格式，需要系统安装 `libheif`：
+
+  - **Windows**：无需额外安装。`pip install pillow-heif` 的 wheel 已捆绑 libheif，开箱即用。
+  - **macOS / Linux**：
+
+  ```shell
+  # macOS（Homebrew）
+  brew install libheif
+  # 或 Linux（Debian/Ubuntu）
+  sudo apt-get install -y libheif-dev
+  ```
+
+  `install.sh` 已包含上述安装步骤（自动检测 brew/apt-get），仅对已初始化过（存在 `inited` 文件）的老用户需要手动执行。
+
 - 将需要添加水印的图片复制到 `~/semi-utils/input` 文件夹中
 
 - 打开命令行/终端，输入
@@ -136,9 +152,13 @@ base:
   input_dir: ./input
   # 输出文件夹
   output_dir: ./output
-  # 输出图片质量（仅对 PNG 等非 JPEG 源生效）。JPEG 源会自动复用源文件的量化表，
-  # 原图区域质量与源保持一致，因此不会出现加水印后体积膨胀
-  quality: 90
+  # 输出图片质量（仅对 PNG 等非 JPEG 源、以及 HEIC 输出生效）。JPEG 源输出 JPEG 时
+  # 会自动复用源文件的量化表，原图区域质量与源保持一致，因此不会出现加水印后体积膨胀
+  quality: 65
+  # 回退输出格式：jpg 或 heic。输出格式优先跟随输入（jpg→jpg, heic→heic），
+  # 仅当输入不是 jpg/heic（如 png）时使用这里的配置。heic 在同视觉质量下体积约为 jpg
+  # 的一半，quality 档位编码（注意 heic 的 quality 语义与 jpg 不同，65 视觉上约等于 jpg 90）
+  output_format: jpg
 global: # 全局设置，你可以在命令行中通过【更多设置】来修改这些设置
   focal_length:
     # 是否使用等效焦距

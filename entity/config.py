@@ -111,6 +111,10 @@ class Config(object):
     def get_quality(self):
         return self._data['base']['quality']
 
+    def get_output_format(self) -> str:
+        base = self._data.get('base', {})
+        return base.get('output_format', 'jpg')
+
     def get_alternative_font(self):
         return ImageFont.truetype(self._data['base']['alternative_font'], self.get_font_size())
 

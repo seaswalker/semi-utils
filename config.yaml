@@ -7,9 +7,13 @@ base:
   font_size: 1
   input_dir: ./input
   output_dir: ./output
-  # 输出图片质量（仅对 PNG 等非 JPEG 源生效）。JPEG 源会自动复用源文件的量化表，
-  # 原图区域质量与源保持一致，因此不会出现加水印后体积膨胀
-  quality: 90
+  # 输出图片质量（仅对 PNG 等非 JPEG 源、以及 HEIC 输出生效）。JPEG 源输出 JPEG 时
+  # 会自动复用源文件的量化表，原图区域质量与源保持一致，因此不会出现加水印后体积膨胀
+  quality: 65
+  # 回退输出格式：jpg 或 heic。输出格式优先跟随输入（jpg→jpg, heic→heic），
+  # 仅当输入不是 jpg/heic（如 png）时使用这里的配置。heic 在同视觉质量下体积约为 jpg
+  # 的一半，quality 档位编码（注意 heic 的 quality 语义与 jpg 不同，65 视觉上约等于 jpg 90）
+  output_format: jpg
 global:
   focal_length:
     use_equivalent_focal_length: false

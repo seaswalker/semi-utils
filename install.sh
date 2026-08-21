@@ -33,6 +33,28 @@ rm "$EXIFTOOL_FILE_NAME"
 # 下载 python 依赖
 pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+# 安装 HEIC 系统依赖 libheif（pillow-heif 运行时需要；JPEG 功能不受影响）
+install_libheif() {
+  if command -v brew >/dev/null 2>&1; then
+    if ! brew list libheif >/dev/null 2>&1; then
+      echo "正在安装 libheif（用于 HEIC 输出）..."
+      brew install libheif
+    else
+      echo "libheif 已安装"
+    fi
+  elif command -v apt-get >/dev/null 2>&1; then
+    if ! dpkg -s libheif-dev >/dev/null 2>&1; then
+      echo "正在安装 libheif（用于 HEIC 输出），可能需要输入 sudo 密码..."
+      sudo apt-get update && sudo apt-get install -y libheif-dev
+    else
+      echo "libheif 已安装"
+    fi
+  else
+    echo "警告: 未检测到 brew/apt-get，跳过 libheif 安装。HEIC 输出需要 libheif，仅用 JPEG 则不受影响。"
+  fi
+}
+install_libheif
+
 # 初始化完成
 touch inited
 echo "初始化完成, inited 文件已生成, 如需重新初始化, 请删除 inited 文件"
