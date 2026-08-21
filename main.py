@@ -34,8 +34,16 @@ def image_process_callback(processor_chain_, source_path_):
         else:
             print(f'\nError: 文件：{source_path_} 处理失败，请检查日志')
 
-    # 保存图片
-    target_path = Path(config.get_output_dir(), encoding=ENCODING).joinpath(source_path_.name)
+    # 保存图片：输出格式优先跟随输入（jpg→jpg, heic→heic）；
+    # 非 jpg/heic 输入（如 png）时回退到配置的 output_format
+    source_suffix = source_path_.suffix.lower()
+    if source_suffix in ('.jpg', '.jpeg'):
+        target_suffix = '.jpg'
+    elif source_suffix == '.heic':
+        target_suffix = '.heic'
+    else:
+        target_suffix = '.heic' if config.get_output_format() == 'heic' else '.jpg'
+    target_path = Path(config.get_output_dir(), encoding=ENCODING).joinpath(source_path_.stem + target_suffix)
 
     container.save(target_path, quality=config.get_quality())
     container.close()

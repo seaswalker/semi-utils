@@ -26,13 +26,14 @@ logger = logging.getLogger(__name__)
 
 def get_file_list(path):
     """
-    获取 jpg 文件列表
+    获取图片文件列表（支持 jpg / png / heic）
     :param path: 路径
     :return: 文件名
     """
     path = Path(path, encoding=ENCODING)
     return [file_path for file_path in path.iterdir()
-            if file_path.is_file() and file_path.suffix in ['.jpg', '.jpeg', '.JPG', '.JPEG', '.png', '.PNG']]
+            if file_path.is_file() and file_path.suffix in ['.jpg', '.jpeg', '.JPG', '.JPEG', '.png', '.PNG',
+                                                            '.heic', '.HEIC']]
 
 
 def get_exif(path) -> dict:
